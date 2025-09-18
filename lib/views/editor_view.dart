@@ -60,6 +60,22 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
 
   List<Patch> _patches = [];
 
+  // Rectangle selection state
+  bool _rectangleSelectMode = false;
+  Offset? _rectSelectStart;
+  Offset? _rectSelectEnd;
+
+  Rect? get _selectedRect {
+    if (_rectSelectStart == null || _rectSelectEnd == null) return null;
+    final start = _rectSelectStart!;
+    final end = _rectSelectEnd!;
+    final left = math.min(start.dx, end.dx);
+    final top = math.min(start.dy, end.dy);
+    final right = math.max(start.dx, end.dx);
+    final bottom = math.max(start.dy, end.dy);
+    return Rect.fromLTRB(left, top, right + 1, bottom + 1);
+  }
+
   void _placePatch() async {
     final patch = Patch.all(
       gridPosition: _hoverGridCursor,
@@ -110,11 +126,16 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
   }
 
   Size _gridSize() {
-    final gridWidth = double.parse(_gridsizeController.text);
-    final gridHeight = _square
-        ? double.parse(_gridsizeController.text)
-        : double.parse(_gridHeightController.text);
-    return Size(gridWidth, gridHeight);
+    try {
+      final gridWidth = double.parse(_gridsizeController.text);
+      final gridHeight = _square
+          ? double.parse(_gridsizeController.text)
+          : double.parse(_gridHeightController.text);
+
+      return Size(gridWidth, gridHeight);
+    } catch (e) {
+      return Size.zero;
+    }
   }
 
   void _onHover(
@@ -147,6 +168,97 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
     });
   }
 
+  void _selectAll() {
+    final gridSize = _gridSize();
+    if (gridSize.width == 0 || gridSize.height == 0) {
+      return;
+    }
+
+    final image = widget.selection.image;
+    final verticalTiles = (image.height / gridSize.height).ceil();
+    final horizontalTiles = (image.width / gridSize.width).ceil();
+
+    final allPatches = <Patch>[];
+    for (double y = 0; y < verticalTiles; y++) {
+      for (double x = 0; x < horizontalTiles; x++) {
+        final gridPosition = Offset(x, y);
+        allPatches.add(Patch.all(gridPosition: gridPosition));
+      }
+    }
+
+    setState(() {
+      _patches = allPatches;
+    });
+  }
+
+  void _removeBorder() {
+    final gridSize = _gridSize();
+    if (gridSize.width == 0 || gridSize.height == 0) {
+      return;
+    }
+
+    final image = widget.selection.image;
+    final verticalTiles = (image.height / gridSize.height).ceil();
+    final horizontalTiles = (image.width / gridSize.width).ceil();
+
+    final updatedPatches = _patches.map((patch) {
+      final x = patch.gridPosition.dx;
+      final y = patch.gridPosition.dy;
+
+      // Determine which borders should be removed based on position
+      final isLeftBorder = x == 0;
+      final isRightBorder = x == horizontalTiles - 1;
+      final isTopBorder = y == 0;
+      final isBottomBorder = y == verticalTiles - 1;
+
+      return patch.copyWith(
+        patchLeft: isLeftBorder ? false : patch.patchLeft,
+        patchRight: isRightBorder ? false : patch.patchRight,
+        patchTop: isTopBorder ? false : patch.patchTop,
+        patchBottom: isBottomBorder ? false : patch.patchBottom,
+      );
+    }).toList();
+
+    setState(() {
+      _patches = updatedPatches;
+    });
+  }
+
+  void _removeBorderRect() {
+    if (_selectedRect == null) return;
+
+    final rect = _selectedRect!;
+    final updatedPatches = _patches.map((patch) {
+      final x = patch.gridPosition.dx;
+      final y = patch.gridPosition.dy;
+
+      // Only modify patches within the selected rectangle
+      if (x < rect.left ||
+          x >= rect.right ||
+          y < rect.top ||
+          y >= rect.bottom) {
+        return patch;
+      }
+
+      // Determine which borders should be removed based on position within the rectangle
+      final isLeftBorder = x == rect.left;
+      final isRightBorder = x == rect.right - 1;
+      final isTopBorder = y == rect.top;
+      final isBottomBorder = y == rect.bottom - 1;
+
+      return patch.copyWith(
+        patchLeft: isLeftBorder ? false : patch.patchLeft,
+        patchRight: isRightBorder ? false : patch.patchRight,
+        patchTop: isTopBorder ? false : patch.patchTop,
+        patchBottom: isBottomBorder ? false : patch.patchBottom,
+      );
+    }).toList();
+
+    setState(() {
+      _patches = updatedPatches;
+    });
+  }
+
   Future<void> _save() async {
     final imageBytes = await _selection.patch.toByteData(
       format: ui.ImageByteFormat.png,
@@ -160,7 +272,16 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
     final gridWidth = gridSize.width;
     final gridHeight = gridSize.height;
 
+    // Validate grid size
+    if (gridWidth <= 0 || gridHeight <= 0) {
+      return;
+    }
+
     final space = int.parse(_spaceController.text);
+    if (space < 0) {
+      return;
+    }
+
     final newGridWidth = gridWidth + space;
     final newGridHeight = gridHeight + space;
 
@@ -172,20 +293,26 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
 
     final verticalTiles = (image.height / gridHeight).ceil();
     final horizontalTiles = (image.width / gridWidth).ceil();
+
+    // Validate that we have tiles to process
+    if (verticalTiles <= 0 || horizontalTiles <= 0) {
+      return;
+    }
+
     for (double y = 0; y < verticalTiles; y++) {
       for (double x = 0; x < horizontalTiles; x++) {
         final src = Rect.fromLTWH(
           x * gridWidth,
           y * gridHeight,
-          gridWidth,
-          gridHeight,
+          math.min(gridWidth, image.width - x * gridWidth),
+          math.min(gridHeight, image.height - y * gridHeight),
         );
 
         final dst = Rect.fromLTWH(
           x * newGridWidth,
           y * newGridHeight,
-          gridWidth,
-          gridHeight,
+          src.width,
+          src.height,
         );
 
         canvas.drawImageRect(
@@ -203,116 +330,146 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
         );
 
         // Bottom patch
-        if (patch.patchBottom) {
-          final bottomPatcherSrc = Rect.fromLTWH(
-            x * gridWidth,
-            y * gridHeight + gridHeight - 1,
-            gridWidth,
-            space.toDouble(),
-          );
+        if (patch.patchBottom && space > 0) {
+          final bottomSrcY = math
+              .min(y * gridHeight + gridHeight - 1, image.height - 1)
+              .toDouble();
+          final bottomSrcHeight =
+              math.min(space.toDouble(), image.height - bottomSrcY);
 
-          final bottomPatcherDst = Rect.fromLTWH(
-            x * newGridWidth,
-            y * newGridHeight + gridHeight,
-            newGridWidth,
-            space.toDouble(),
-          );
+          if (bottomSrcHeight > 0) {
+            final bottomPatcherSrc = Rect.fromLTWH(
+              x * gridWidth,
+              bottomSrcY,
+              math.min(gridWidth, image.width - x * gridWidth),
+              bottomSrcHeight,
+            );
 
-          canvas.drawImageRect(
-            image,
-            bottomPatcherSrc,
-            bottomPatcherDst,
-            paint,
-          );
+            final bottomPatcherDst = Rect.fromLTWH(
+              x * newGridWidth,
+              y * newGridHeight + src.height,
+              newGridWidth,
+              space.toDouble(),
+            );
+
+            canvas.drawImageRect(
+              image,
+              bottomPatcherSrc,
+              bottomPatcherDst,
+              paint,
+            );
+          }
         }
 
-        if (patch.patchRight) {
+        if (patch.patchRight && space > 0) {
           // Right patch
-          final rightPatcherSrc = Rect.fromLTWH(
-            x * gridWidth + gridWidth - 1,
-            y * gridHeight,
-            space.toDouble(),
-            gridHeight,
-          );
+          final rightSrcX = math
+              .min(x * gridWidth + gridWidth - 1, image.width - 1)
+              .toDouble();
+          final rightSrcWidth =
+              math.min(space.toDouble(), image.width - rightSrcX);
 
-          final rightPatcherDst = Rect.fromLTWH(
-            x * newGridWidth + gridWidth,
-            y * newGridHeight,
-            space.toDouble(),
-            newGridHeight,
-          );
+          if (rightSrcWidth > 0) {
+            final rightPatcherSrc = Rect.fromLTWH(
+              rightSrcX,
+              y * gridHeight,
+              rightSrcWidth,
+              math.min(gridHeight, image.height - y * gridHeight),
+            );
 
-          canvas.drawImageRect(
-            image,
-            rightPatcherSrc,
-            rightPatcherDst,
-            paint,
-          );
+            final rightPatcherDst = Rect.fromLTWH(
+              x * newGridWidth + src.width,
+              y * newGridHeight,
+              space.toDouble(),
+              newGridHeight,
+            );
+
+            canvas.drawImageRect(
+              image,
+              rightPatcherSrc,
+              rightPatcherDst,
+              paint,
+            );
+          }
         }
 
-        if (patch.patchTop) {
-          // Top patch
-          final topPatcherSrc = Rect.fromLTWH(
-            x * gridWidth,
-            y * gridHeight - space,
-            gridWidth,
-            space.toDouble(),
-          );
+        if (patch.patchTop && space > 0 && y > 0) {
+          // Top patch - only if not on the first row
+          final topSrcY = math.max(0, y * gridHeight - space).toDouble();
+          final topSrcHeight = math.min(space.toDouble(), y * gridHeight);
 
-          final topPatcherDst = Rect.fromLTWH(
-            x * newGridWidth,
-            y * newGridHeight - space,
-            newGridWidth,
-            space.toDouble(),
-          );
+          if (topSrcHeight > 0) {
+            final topPatcherSrc = Rect.fromLTWH(
+              x * gridWidth,
+              topSrcY,
+              math.min(gridWidth, image.width - x * gridWidth),
+              topSrcHeight,
+            );
 
-          canvas.drawImageRect(
-            image,
-            topPatcherSrc,
-            topPatcherDst,
-            paint,
-          );
+            final topPatcherDst = Rect.fromLTWH(
+              x * newGridWidth,
+              y * newGridHeight - space,
+              newGridWidth,
+              space.toDouble(),
+            );
+
+            canvas.drawImageRect(
+              image,
+              topPatcherSrc,
+              topPatcherDst,
+              paint,
+            );
+          }
         }
 
-        if (patch.patchLeft) {
-          // Left patch
-          final leftPatcherSrc = Rect.fromLTWH(
-            x * gridWidth - space,
-            y * gridHeight,
-            space.toDouble(),
-            gridHeight,
-          );
+        if (patch.patchLeft && space > 0 && x > 0) {
+          // Left patch - only if not on the first column
+          final leftSrcX = math.max(0, x * gridWidth - space).toDouble();
+          final leftSrcWidth = math.min(space.toDouble(), x * gridWidth);
 
-          final leftPatcherDst = Rect.fromLTWH(
-            x * newGridWidth - space,
-            y * newGridHeight,
-            space.toDouble(),
-            newGridHeight,
-          );
+          if (leftSrcWidth > 0) {
+            final leftPatcherSrc = Rect.fromLTWH(
+              leftSrcX,
+              y * gridHeight,
+              leftSrcWidth,
+              math.min(gridHeight, image.height - y * gridHeight),
+            );
 
-          canvas.drawImageRect(
-            image,
-            leftPatcherSrc,
-            leftPatcherDst,
-            paint,
-          );
+            final leftPatcherDst = Rect.fromLTWH(
+              x * newGridWidth - space,
+              y * newGridHeight,
+              space.toDouble(),
+              newGridHeight,
+            );
+
+            canvas.drawImageRect(
+              image,
+              leftPatcherSrc,
+              leftPatcherDst,
+              paint,
+            );
+          }
         }
       }
     }
 
     final picture = recorder.endRecording();
-    final newImage = await picture.toImage(
-      (horizontalTiles * newGridWidth).toInt(),
-      (verticalTiles * newGridHeight).toInt(),
-    );
 
-    setState(() {
-      _selection = TilePatcherSelection(
-        path: widget.selection.path,
-        image: widget.selection.image,
-        patch: newImage,
-      );
-    });
+    // Calculate final image dimensions and ensure they're positive
+    final finalWidth = math.max(1, (horizontalTiles * newGridWidth).toInt());
+    final finalHeight = math.max(1, (verticalTiles * newGridHeight).toInt());
+
+    try {
+      final newImage = await picture.toImage(finalWidth, finalHeight);
+
+      setState(() {
+        _selection = TilePatcherSelection(
+          path: widget.selection.path,
+          image: widget.selection.image,
+          patch: newImage,
+        );
+      });
+    } catch (e) {}
   }
 
   @override
@@ -325,18 +482,56 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
             children: [
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: _update,
+                onPressed: () async {
+                  try {
+                    await _update();
+                  } catch (e) {}
+                },
                 child: const Text('Update'),
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: _save,
+                onPressed: () async {
+                  try {
+                    await _save();
+                  } catch (e) {}
+                },
                 child: const Text('Save'),
               ),
               const SizedBox(height: 8),
               ElevatedButton(
                 onPressed: widget.onCancel,
                 child: const Text('Close'),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _selectAll,
+                child: const Text('Select All'),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _rectangleSelectMode = !_rectangleSelectMode;
+                    _rectSelectStart = null;
+                    _rectSelectEnd = null;
+                  });
+                },
+                child: Text(_rectangleSelectMode
+                    ? 'Exit Rect Select'
+                    : 'Rectangle Select'),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _rectangleSelectMode && _selectedRect != null
+                    ? _removeBorderRect
+                    : null,
+                child: const Text('Remove Border (Rect)'),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _removeBorder,
+                child: const Text('Remove Border (All)'),
               ),
               const SizedBox(height: 8),
               const Divider(),
@@ -411,14 +606,90 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
                           builder: (context, constraints) {
                             return Listener(
                               onPointerHover: (event) {
-                                _onHover(
-                                  event.localPosition,
-                                  constraints.maxWidth,
-                                  constraints.maxHeight,
-                                );
+                                if (!_rectangleSelectMode) {
+                                  _onHover(
+                                    event.localPosition,
+                                    constraints.maxWidth,
+                                    constraints.maxHeight,
+                                  );
+                                }
                               },
-                              onPointerUp: (_) {
-                                _placePatch();
+                              onPointerDown: (event) {
+                                if (_rectangleSelectMode) {
+                                  final gridSize = _gridSize();
+                                  if (gridSize.width <= 0 ||
+                                      gridSize.height <= 0) return;
+
+                                  final scaleX = constraints.maxWidth /
+                                      _selection.image.width;
+                                  final scaleY = constraints.maxHeight /
+                                      _selection.image.height;
+                                  final scale = math.min(scaleX, scaleY);
+                                  final pos = event.localPosition;
+                                  final gridX =
+                                      (pos.dx / scale ~/ gridSize.width)
+                                          .toDouble();
+                                  final gridY =
+                                      (pos.dy / scale ~/ gridSize.height)
+                                          .toDouble();
+
+                                  setState(() {
+                                    _rectSelectStart = Offset(gridX, gridY);
+                                    _rectSelectEnd = Offset(gridX, gridY);
+                                  });
+                                }
+                              },
+                              onPointerMove: (event) {
+                                if (_rectangleSelectMode &&
+                                    _rectSelectStart != null) {
+                                  final gridSize = _gridSize();
+                                  if (gridSize.width <= 0 ||
+                                      gridSize.height <= 0) return;
+
+                                  final scaleX = constraints.maxWidth /
+                                      _selection.image.width;
+                                  final scaleY = constraints.maxHeight /
+                                      _selection.image.height;
+                                  final scale = math.min(scaleX, scaleY);
+                                  final pos = event.localPosition;
+                                  final gridX =
+                                      (pos.dx / scale ~/ gridSize.width)
+                                          .toDouble();
+                                  final gridY =
+                                      (pos.dy / scale ~/ gridSize.height)
+                                          .toDouble();
+
+                                  setState(() {
+                                    _rectSelectEnd = Offset(gridX, gridY);
+                                  });
+                                }
+                              },
+                              onPointerUp: (event) {
+                                if (_rectangleSelectMode &&
+                                    _rectSelectStart != null) {
+                                  final gridSize = _gridSize();
+                                  if (gridSize.width <= 0 ||
+                                      gridSize.height <= 0) return;
+
+                                  final scaleX = constraints.maxWidth /
+                                      _selection.image.width;
+                                  final scaleY = constraints.maxHeight /
+                                      _selection.image.height;
+                                  final scale = math.min(scaleX, scaleY);
+                                  final pos = event.localPosition;
+                                  final gridX =
+                                      (pos.dx / scale ~/ gridSize.width)
+                                          .toDouble();
+                                  final gridY =
+                                      (pos.dy / scale ~/ gridSize.height)
+                                          .toDouble();
+
+                                  setState(() {
+                                    _rectSelectEnd = Offset(gridX, gridY);
+                                  });
+                                } else {
+                                  _placePatch();
+                                }
                               },
                               child: Stack(
                                 children: [
@@ -439,21 +710,43 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
                                         ),
                                       ),
                                     ),
-                                  Positioned(
-                                      left: _hoverCursor.dx,
-                                      top: _hoverCursor.dy,
-                                      child: DecoratedBox(
+                                  // Rectangle selection highlight
+                                  if (_rectangleSelectMode &&
+                                      _selectedRect != null)
+                                    Positioned(
+                                      left: _selectedRect!.left *
+                                          _hoverSize.width,
+                                      top: _selectedRect!.top *
+                                          _hoverSize.height,
+                                      child: Container(
+                                        width: (_selectedRect!.width) *
+                                            _hoverSize.width,
+                                        height: (_selectedRect!.height) *
+                                            _hoverSize.height,
                                         decoration: BoxDecoration(
                                           border: Border.all(
-                                            color: Colors.grey,
-                                            width: 2,
+                                              color: Colors.red, width: 3),
+                                          color: Colors.red.withOpacity(0.1),
+                                        ),
+                                      ),
+                                    ),
+                                  // Hover cursor (only show when not in rectangle select mode)
+                                  if (!_rectangleSelectMode)
+                                    Positioned(
+                                        left: _hoverCursor.dx,
+                                        top: _hoverCursor.dy,
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: Colors.grey,
+                                              width: 2,
+                                            ),
                                           ),
-                                        ),
-                                        child: SizedBox(
-                                          width: _hoverSize.width,
-                                          height: _hoverSize.height,
-                                        ),
-                                      )),
+                                          child: SizedBox(
+                                            width: _hoverSize.width,
+                                            height: _hoverSize.height,
+                                          ),
+                                        )),
                                 ],
                               ),
                             );
