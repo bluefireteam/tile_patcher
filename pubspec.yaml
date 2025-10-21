@@ -1,6 +1,6 @@
 name: tile_patcher
 description: "Flutter app to add spacing between tiles in a tileset/spritesheet"
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none'
 
 version: 1.0.0+1
 
@@ -10,10 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  cupertino_icons: ^1.0.2
   file_selector: ^1.0.1
   flutter_launcher_icons: ^0.13.1
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:

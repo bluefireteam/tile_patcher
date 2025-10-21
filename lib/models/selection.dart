@@ -11,4 +11,3 @@ class TilePatcherSelection {
   final Image image;
   final Image patch;
 }
-

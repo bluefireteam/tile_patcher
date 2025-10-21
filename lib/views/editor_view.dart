@@ -4,10 +4,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tile_patcher/models/models.dart';
+import 'package:path/path.dart' as path;
 
 extension on Patch {
   BoxDecoration toBoxDecoration() {
-    final noPatchColor = Colors.blue.withOpacity(0.2);
+    final noPatchColor = Colors.blue.withValues(alpha: 0.2);
     return BoxDecoration(
       border: Border(
         left: BorderSide(
@@ -152,7 +153,14 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
       format: ui.ImageByteFormat.png,
     );
 
-    File(_selection.path).writeAsBytesSync(imageBytes!.buffer.asUint8List());
+    final fileName = path.basenameWithoutExtension(_selection.path);
+    final dirName = path.dirname(_selection.path);
+    final fileExtension = path.extension(_selection.path);
+
+    final patchedFileName = '${fileName}_patched.$fileExtension';
+    final patchedFilePath = path.join(dirName, patchedFileName);
+
+    File(patchedFilePath).writeAsBytesSync(imageBytes!.buffer.asUint8List());
   }
 
   Future<void> _update() async {
@@ -302,8 +310,8 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
 
     final picture = recorder.endRecording();
     final newImage = await picture.toImage(
-      (horizontalTiles * newGridWidth).toInt(),
-      (verticalTiles * newGridHeight).toInt(),
+      (horizontalTiles * newGridWidth).toInt() - 1,
+      (verticalTiles * newGridHeight).toInt() - 1,
     );
 
     setState(() {
@@ -422,8 +430,13 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
                               },
                               child: Stack(
                                 children: [
-                                  RawImage(
-                                    image: _selection.image,
+                                  Positioned.fill(
+                                    child: RawImage(
+                                      image: _selection.image,
+                                      fit: BoxFit.contain,
+                                      alignment: Alignment.topCenter,
+                                      filterQuality: FilterQuality.none,
+                                    ),
                                   ),
                                   for (final patch in _patches)
                                     Positioned(
@@ -471,7 +484,12 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
                   child: Column(
                     children: [
                       Expanded(
-                        child: RawImage(image: _selection.patch),
+                        child: RawImage(
+                          image: _selection.patch,
+                          fit: BoxFit.contain,
+                          alignment: Alignment.topCenter,
+                          filterQuality: FilterQuality.none,
+                        ),
                       ),
                       Text(
                         'Patch: ${_selection.patch.width}x${_selection.patch.height}',

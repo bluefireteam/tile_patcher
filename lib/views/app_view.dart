@@ -11,4 +11,3 @@ class TilePatcherApp extends StatelessWidget {
     );
   }
 }
-

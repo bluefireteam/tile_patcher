@@ -34,4 +34,3 @@ class _TilesetPatcherHomeState extends State<TilesetPatcherHome> {
     );
   }
 }
-

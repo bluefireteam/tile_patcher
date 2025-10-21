@@ -40,4 +40,3 @@ class TilePatcherImageSelectionView extends StatelessWidget {
     );
   }
 }
-
