@@ -13,6 +13,7 @@ dependencies:
   file_selector: ^1.0.1
   flutter_launcher_icons: ^0.13.1
   path: ^1.9.1
+  nes_ui: ^0.26.0
 
 dev_dependencies:
   flutter_test:
@@ -22,6 +23,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+  - assets/
+  - assets/google_fonts/Press_Start_2P/
 
 flutter_launcher_icons:
   windows:

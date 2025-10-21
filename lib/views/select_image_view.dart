@@ -1,5 +1,6 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:nes_ui/nes_ui.dart';
 import 'package:tile_patcher/models/models.dart';
 
 class TilePatcherImageSelectionView extends StatelessWidget {
@@ -13,7 +14,8 @@ class TilePatcherImageSelectionView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: ElevatedButton(
+      child: NesButton(
+        type: NesButtonType.primary,
         onPressed: () async {
           const typeGroup = XTypeGroup(
             label: 'images',

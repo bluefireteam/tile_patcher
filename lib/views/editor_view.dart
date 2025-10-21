@@ -3,29 +3,30 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nes_ui/nes_ui.dart';
 import 'package:tile_patcher/models/models.dart';
 import 'package:path/path.dart' as path;
 
 extension on Patch {
   BoxDecoration toBoxDecoration() {
-    final noPatchColor = Colors.blue.withValues(alpha: 0.2);
+    final noPatchColor = Colors.blueGrey.withValues(alpha: 0.2);
     return BoxDecoration(
       border: Border(
         left: BorderSide(
           color: patchLeft ? Colors.blue : noPatchColor,
-          width: 2,
+          width: 4,
         ),
         right: BorderSide(
           color: patchRight ? Colors.blue : noPatchColor,
-          width: 2,
+          width: 4,
         ),
         top: BorderSide(
           color: patchTop ? Colors.blue : noPatchColor,
-          width: 2,
+          width: 4,
         ),
         bottom: BorderSide(
           color: patchBottom ? Colors.blue : noPatchColor,
-          width: 2,
+          width: 4,
         ),
       ),
     );
@@ -71,7 +72,7 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
     );
 
     if (existingPatches.isNotEmpty) {
-      final value = await showDialog<_PatchEditViewResult>(
+      final value = await NesDialog.show<_PatchEditViewResult>(
         context: context,
         builder: (context) {
           return _PatchEditView(
@@ -332,17 +333,20 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
           Column(
             children: [
               const SizedBox(height: 8),
-              ElevatedButton(
+              NesButton(
+                type: NesButtonType.primary,
                 onPressed: _update,
                 child: const Text('Update'),
               ),
               const SizedBox(height: 8),
-              ElevatedButton(
+              NesButton(
+                type: NesButtonType.success,
                 onPressed: _save,
                 child: const Text('Save'),
               ),
               const SizedBox(height: 8),
-              ElevatedButton(
+              NesButton(
+                type: NesButtonType.warning,
                 onPressed: widget.onCancel,
                 child: const Text('Close'),
               ),
@@ -362,7 +366,7 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
               const Divider(),
               const SizedBox(height: 8),
               SizedBox(
-                width: 80,
+                width: 150,
                 child: TextFormField(
                   controller: _spaceController,
                   decoration: const InputDecoration(
@@ -375,7 +379,7 @@ class TilePatcherEditorViewState extends State<TilePatcherEditorView> {
               ),
               const SizedBox(height: 8),
               SizedBox(
-                width: 80,
+                width: 150,
                 child: TextFormField(
                   controller: _gridsizeController,
                   decoration: InputDecoration(
@@ -532,135 +536,146 @@ class _PatchEditViewState extends State<_PatchEditView> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      child: SizedBox(
-        width: 400,
-        height: 440,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Column(
-                  children: [
-                    const Text('Preview'),
-                    const SizedBox(height: 8),
-                    DecoratedBox(
-                      decoration: _patch.toBoxDecoration(),
-                      child: const SizedBox(
-                        width: 100,
-                        height: 100,
-                      ),
+    return SizedBox(
+      width: 450,
+      height: 380,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Column(
+                children: [
+                  const Text('Preview'),
+                  const SizedBox(height: 8),
+                  DecoratedBox(
+                    decoration: _patch.toBoxDecoration(),
+                    child: const SizedBox(
+                      width: 120,
+                      height: 120,
                     ),
-                  ],
-                ),
-                const SizedBox(width: 48),
-                Column(
+                  ),
+                ],
+              ),
+              const SizedBox(width: 48),
+              SizedBox(
+                width: 250,
+                child: Column(
                   children: [
                     Row(
+                      spacing: 16,
                       children: [
-                        const Text('Patch Top'),
-                        Switch(
+                        NesCheckBox(
                           value: _patch.patchTop,
-                          onChanged: (value) {
+                          onChange: (value) {
                             setState(() {
                               _patch = _patch.copyWith(patchTop: value);
                             });
                           },
                         ),
+                        const Text('Patch Top'),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
+                      spacing: 16,
                       children: [
-                        const Text('Patch Bottom'),
-                        Switch(
+                        NesCheckBox(
                           value: _patch.patchBottom,
-                          onChanged: (value) {
+                          onChange: (value) {
                             setState(() {
                               _patch = _patch.copyWith(patchBottom: value);
                             });
                           },
                         ),
+                        const Text('Patch Bottom'),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
+                      spacing: 16,
                       children: [
-                        const Text('Patch Left'),
-                        Switch(
+                        NesCheckBox(
                           value: _patch.patchLeft,
-                          onChanged: (value) {
+                          onChange: (value) {
                             setState(() {
                               _patch = _patch.copyWith(patchLeft: value);
                             });
                           },
                         ),
+                        const Text('Patch Left'),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Row(
+                      spacing: 16,
                       children: [
-                        const Text('Patch Right'),
-                        Switch(
+                        NesCheckBox(
                           value: _patch.patchRight,
-                          onChanged: (value) {
+                          onChange: (value) {
                             setState(() {
                               _patch = _patch.copyWith(patchRight: value);
                             });
                           },
                         ),
+                        const Text('Patch Right'),
                       ],
                     ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 48),
-            Column(
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(
-                      _PatchEditViewResult(
-                        patch: _patch,
-                        delete: false,
-                      ),
-                    );
-                  },
-                  child: const Text('Update'),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(
-                      _PatchEditViewResult(
-                        patch: widget.patch,
-                        delete: false,
-                      ),
-                    );
-                  },
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(
-                      _PatchEditViewResult(
-                        patch: widget.patch,
-                        delete: true,
-                      ),
-                    );
-                  },
-                  child: const Text('Delete'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 48),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 48),
+          Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                spacing: 8,
+                children: [
+                  NesButton(
+                    type: NesButtonType.primary,
+                    onPressed: () {
+                      Navigator.of(context).pop(
+                        _PatchEditViewResult(
+                          patch: _patch,
+                          delete: false,
+                        ),
+                      );
+                    },
+                    child: const Text('Update'),
+                  ),
+                  NesButton(
+                    type: NesButtonType.error,
+                    onPressed: () {
+                      Navigator.of(context).pop(
+                        _PatchEditViewResult(
+                          patch: widget.patch,
+                          delete: true,
+                        ),
+                      );
+                    },
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              NesButton(
+                type: NesButtonType.warning,
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    _PatchEditViewResult(
+                      patch: widget.patch,
+                      delete: false,
+                    ),
+                  );
+                },
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
